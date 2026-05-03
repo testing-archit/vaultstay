@@ -1,0 +1,17 @@
+{
+  "name": "vaultstay-contracts",
+  "version": "1.0.0",
+  "description": "VaultStay - Decentralized Rental Escrow Smart Contracts",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts",
+    "seed": "hardhat run scripts/seed.ts"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.0.2",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.22.4"
+  }
+}

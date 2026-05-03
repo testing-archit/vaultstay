@@ -1,0 +1,46 @@
+# ── Node ──────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Hardhat ────────────────────────────────────────────────────
+cache/
+artifacts/
+typechain-types/
+hardhat_node.log
+*.log
+
+# ── Environment / Secrets ──────────────────────────────────────
+# .env files contain private keys — never commit them
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# ── Build Outputs ──────────────────────────────────────────────
+dist/
+build/
+.next/
+out/
+
+# ── Vite cache ─────────────────────────────────────────────────
+frontend/node_modules/
+node_modules/.vite/
+
+# ── OS / Editor ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.suo
+*.user
+.vscode/
+.idea/
+
+# ── Debug / Scratch ────────────────────────────────────────────
+debug_contract.ts
+
+# ── GSD planning (agent internal) ─────────────────────────────
+.agent/
+.planning/
