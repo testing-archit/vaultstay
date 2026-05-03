@@ -133,7 +133,7 @@ export default function DashboardPage() {
 
   const activeDisplay = tab === "LISTINGS" ? myListings : myBookings;
 
-  const lockedWei = activeDisplay
+  const lockedWei = [...myListings, ...myBookings]
     .filter((l) => l.state === 1 || l.state === 2)
     .reduce<bigint>((acc, l) => acc + l.rentAmount + l.depositAmount, 0n);
 

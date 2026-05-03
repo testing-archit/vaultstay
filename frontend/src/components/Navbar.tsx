@@ -16,11 +16,12 @@ export function Navbar() {
   return (
     <>
       <nav className="flex justify-between items-center px-4 md:px-6 py-4 border-b border-border bg-background/80 backdrop-blur-lg sticky top-0 z-50">
-        {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-accent/60 flex items-center justify-center font-display font-bold text-white text-lg shadow-[0_0_12px_rgba(108,92,231,0.4)]">
-            V
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="VaultStay Logo" 
+            className="w-9 h-9 rounded-lg shadow-[0_0_12px_rgba(108,92,231,0.4)] object-cover bg-black" 
+          />
           <span className="font-display font-bold text-xl tracking-tight hidden sm:block">
             VaultStay
           </span>
