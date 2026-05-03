@@ -1,30 +1,49 @@
-import { useState } from 'react';
-import { askPropertyAI } from '../lib/gemini';
-import { Sparkles, X, Send, Loader2 } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { askGlobalAI } from '../lib/gemini';
+import { Sparkles, X, Send, Loader2, Image as ImageIcon } from 'lucide-react';
 
 interface AIAssistantProps {
-  propertyContext: string;
+  propertyContext?: string;
 }
 
 export function AIAssistant({ propertyContext }: AIAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([
-    { role: 'ai', text: 'Hi! I am the VaultStay AI assistant. Ask me anything about this property.' }
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string; image?: string }[]>([
+    { role: 'ai', text: propertyContext ? 'Hi! I am the VaultStay AI assistant. Ask me anything about this property.' : 'Hi! I am your global VaultStay AI assistant. You can ask me anything or upload a picture for me to analyze!' }
   ]);
   const [isLoading, setIsLoading] = useState(false);
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim() || isLoading) return;
+    if ((!query.trim() && !imagePreview) || isLoading) return;
 
-    const userQuery = query.trim();
-    setMessages(prev => [...prev, { role: 'user', text: userQuery }]);
+    const userQuery = query.trim() || (imagePreview ? "Please analyze this image." : "");
+    const currentImagePreview = imagePreview;
+    
+    setMessages(prev => [...prev, { role: 'user', text: userQuery, image: currentImagePreview || undefined }]);
     setQuery('');
+    setImageFile(null);
+    setImagePreview(null);
     setIsLoading(true);
 
     try {
-      const aiResponse = await askPropertyAI(propertyContext, userQuery);
+      const aiResponse = await askGlobalAI(propertyContext, userQuery, currentImagePreview);
       setMessages(prev => [...prev, { role: 'ai', text: aiResponse }]);
     } catch (error) {
       setMessages(prev => [...prev, { role: 'ai', text: 'Sorry, I encountered an error answering that.' }]);
@@ -68,6 +87,9 @@ export function AIAssistant({ propertyContext }: AIAssistantProps) {
                       : 'bg-surface border border-border text-gray-200 rounded-bl-none'
                   }`}
                 >
+                  {msg.image && (
+                    <img src={msg.image} alt="uploaded" className="max-w-full rounded-xl mb-2 border border-border/50" />
+                  )}
                   <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
                 </div>
               </div>
@@ -82,18 +104,44 @@ export function AIAssistant({ propertyContext }: AIAssistantProps) {
           </div>
 
           {/* Input */}
-          <form onSubmit={handleSubmit} className="p-3 border-t border-border bg-surface/50">
+          <form onSubmit={handleSubmit} className="p-3 border-t border-border bg-surface/50 flex flex-col gap-2">
+            {imagePreview && (
+              <div className="relative inline-block w-20 h-20">
+                <img src={imagePreview} alt="preview" className="w-full h-full object-cover rounded-xl border border-border" />
+                <button
+                  type="button"
+                  onClick={() => { setImageFile(null); setImagePreview(null); }}
+                  className="absolute -top-2 -right-2 bg-danger text-white rounded-full p-0.5"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
             <div className="relative flex items-center">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute left-2 p-1.5 text-muted hover:text-accent transition-colors"
+              >
+                <ImageIcon size={18} />
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageChange}
+                accept="image/*"
+                className="hidden"
+              />
               <input
                 type="text"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Ask about this property..."
-                className="w-full bg-background border border-border rounded-full py-2 pl-4 pr-12 text-sm focus:outline-none focus:border-accent transition-colors"
+                placeholder="Ask or upload an image..."
+                className="w-full bg-background border border-border rounded-full py-2 pl-10 pr-12 text-sm focus:outline-none focus:border-accent transition-colors"
               />
               <button
                 type="submit"
-                disabled={!query.trim() || isLoading}
+                disabled={(!query.trim() && !imagePreview) || isLoading}
                 className="absolute right-2 p-1.5 bg-accent text-white rounded-full hover:bg-accent2 disabled:opacity-50 disabled:hover:bg-accent transition-colors"
               >
                 <Send size={14} />

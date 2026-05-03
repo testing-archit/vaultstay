@@ -454,8 +454,6 @@ export default function ListingDetailPage() {
           </div>
         </div>
       </main>
-
-      <AIAssistant propertyContext={propertyContext} />
     </div>
   );
 }

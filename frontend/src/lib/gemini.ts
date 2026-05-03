@@ -244,3 +244,46 @@ Give them 2-3 bullet points of actionable advice to increase their rental yield,
   }
 }
 
+export async function askGlobalAI(
+  propertyContext: string | undefined,
+  question: string,
+  base64Image: string | null
+): Promise<string> {
+  if (!ai) {
+    throw new Error('Gemini API key is not configured');
+  }
+
+  let prompt = `You are a helpful global AI assistant for VaultStay, a decentralized web3 real estate rental platform.\n`;
+  
+  if (propertyContext) {
+    prompt += `\nThe user is currently viewing a property with these details:\n${propertyContext}\n`;
+  }
+  
+  if (base64Image) {
+    prompt += `\nThe user has uploaded an image. Please analyze it and answer their question.\n`;
+  }
+
+  prompt += `\nUser's Question: ${question}`;
+
+  try {
+    const contents: any[] = [prompt];
+    
+    if (base64Image) {
+      contents.push({
+        inlineData: {
+          data: base64Image.split(',')[1] || base64Image,
+          mimeType: base64Image.includes('image/png') ? 'image/png' : 'image/jpeg',
+        }
+      });
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents,
+    });
+    return response.text ?? 'No response from AI.';
+  } catch (error) {
+    console.error('Error with Global Gemini AI:', error);
+    return 'Sorry, the AI assistant is currently unavailable.';
+  }
+}

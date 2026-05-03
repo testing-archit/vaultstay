@@ -9,12 +9,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import { decodeEventLog } from "viem";
 import { VaultStayEscrowABI } from "../lib/abi";
 import { createClient } from "../lib/supabase";
+import { Sparkles, BrainCircuit, Wand2, Calculator } from "lucide-react";
+import { 
+  analyzePropertyImages, 
+  generateListingDescription, 
+  suggestPrice 
+} from "../lib/gemini";
 
-// Returns tomorrow's date string in YYYY-MM-DD format (local time)
-const getTomorrow = () => {
+// Returns today's date string in YYYY-MM-DD format (local time)
+const getToday = () => {
   const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().split("T")[0];
 };
 
 // Extract the real revert reason from viem/wagmi nested errors
@@ -69,6 +75,11 @@ export default function CreatePage() {
   const [step, setStep] = useState(-1); // -1 = idle, 0-4 = uploading steps
   const [done, setDone] = useState(false);
 
+  // AI Loading States
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+  const [isSuggestingPrice, setIsSuggestingPrice] = useState(false);
+
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const newFiles = Array.from(e.target.files);
@@ -83,6 +94,91 @@ export default function CreatePage() {
     URL.revokeObjectURL(previews[index]);
     setFiles((f) => f.filter((_, i) => i !== index));
     setPreviews((p) => p.filter((_, i) => i !== index));
+  };
+
+  // ── AI Handlers ──
+  
+  const handleAIAnalyzeImages = async () => {
+    if (files.length === 0) {
+      alert("Please upload some images first!");
+      return;
+    }
+    
+    setIsAnalyzing(true);
+    try {
+      // Convert files to base64
+      const base64Promises = files.map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+      });
+      const base64Images = await Promise.all(base64Promises);
+      
+      const analysis = await analyzePropertyImages(base64Images);
+      
+      setForm(prev => ({
+        ...prev,
+        title: analysis.title || prev.title,
+        bedrooms: analysis.bedrooms.toString() || prev.bedrooms,
+        bathrooms: analysis.bathrooms.toString() || prev.bathrooms,
+        amenities: analysis.amenities.join(", ") || prev.amenities,
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("AI analysis failed. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleAIGenerateDescription = async () => {
+    if (!form.city || !form.country) {
+      alert("Please enter city and country first for better context.");
+      return;
+    }
+
+    setIsGeneratingDesc(true);
+    try {
+      const desc = await generateListingDescription({
+        city: form.city,
+        country: form.country,
+        bedrooms: parseInt(form.bedrooms || "1"),
+        bathrooms: parseInt(form.bathrooms || "1"),
+        amenities: form.amenities.split(",").map(a => a.trim()).filter(Boolean),
+      });
+      setForm(prev => ({ ...prev, description: desc }));
+    } catch (err) {
+      console.error(err);
+      alert("AI generation failed.");
+    } finally {
+      setIsGeneratingDesc(false);
+    }
+  };
+
+  const handleAISuggestPrice = async () => {
+    if (!form.city || !form.country) {
+      alert("Please enter city and country first.");
+      return;
+    }
+
+    setIsSuggestingPrice(true);
+    try {
+      const suggestion = await suggestPrice({
+        city: form.city,
+        country: form.country,
+        bedrooms: parseInt(form.bedrooms || "1"),
+        bathrooms: parseInt(form.bathrooms || "1"),
+        amenities: form.amenities.split(",").map(a => a.trim()).filter(Boolean),
+      });
+      setForm(prev => ({ ...prev, rent: suggestion.rent, deposit: suggestion.deposit }));
+    } catch (err) {
+      console.error(err);
+      alert("AI pricing failed.");
+    } finally {
+      setIsSuggestingPrice(false);
+    }
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -103,16 +199,17 @@ export default function CreatePage() {
       });
 
       setStep(2);
-      // Parse as UTC noon so the timestamp is always safely in the future regardless of timezone.
-      // new Date("YYYY-MM-DD") gives UTC midnight which can be in the past for users in +5:30 etc.
-      const startTs = Math.floor(new Date(form.startDate + "T12:00:00Z").getTime() / 1000);
-      const endTs = startTs + parseInt(form.duration) * 86400;
-
-      // Pre-flight: make sure startTs is actually in the future (safety net)
+      // Parse as UTC noon
+      let startTs = Math.floor(new Date(form.startDate + "T12:00:00Z").getTime() / 1000);
       const nowTs = Math.floor(Date.now() / 1000);
+
+      // If the selected date resolves to the past (e.g., today but earlier in the day),
+      // bump it to 5 minutes in the future so the blockchain accepts it.
       if (startTs <= nowTs) {
-        throw new Error("Start date must be in the future. Please pick a date at least one day from today.");
+        startTs = nowTs + 300; // 5 mins from now
       }
+
+      const endTs = startTs + parseInt(form.duration) * 86400;
       if (endTs <= startTs) {
         throw new Error("Duration must be at least 1 day.");
       }
@@ -220,9 +317,26 @@ export default function CreatePage() {
         <form onSubmit={submit} className="glass-panel p-6 md:p-8 space-y-8">
           {/* ── Images ── */}
           <section>
-            <h2 className="font-display text-xl font-bold mb-4 flex items-center gap-2">
-              <span className="text-accent">01</span> Property Photos
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-xl font-bold flex items-center gap-2">
+                <span className="text-accent">01</span> Property Photos
+              </h2>
+              {files.length > 0 && (
+                <button
+                  type="button"
+                  disabled={isAnalyzing}
+                  onClick={handleAIAnalyzeImages}
+                  className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 rounded-full border border-accent/20 transition-all"
+                >
+                  {isAnalyzing ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <BrainCircuit size={12} />
+                  )}
+                  AI Analyze
+                </button>
+              )}
+            </div>
 
             {previews.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
@@ -271,18 +385,40 @@ export default function CreatePage() {
             <div className="space-y-4">
               <div>
                 <label className="label" htmlFor="title">Listing Title *</label>
-                <input
-                  id="title"
-                  required
-                  type="text"
-                  className="input-field"
-                  placeholder="e.g. Luxury Malibu Beach House"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                />
+                <div className="relative">
+                  <input
+                    id="title"
+                    required
+                    type="text"
+                    className="input-field"
+                    placeholder="e.g. Luxury Malibu Beach House"
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  />
+                  {isAnalyzing && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 size={16} className="animate-spin text-accent opacity-50" />
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
-                <label className="label" htmlFor="description">Description *</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="label mb-0" htmlFor="description">Description *</label>
+                  <button
+                    type="button"
+                    disabled={isGeneratingDesc}
+                    onClick={handleAIGenerateDescription}
+                    className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-accent2 hover:text-accent2-hover transition-colors"
+                  >
+                    {isGeneratingDesc ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={12} />
+                    )}
+                    Magic Write
+                  </button>
+                </div>
                 <textarea
                   id="description"
                   required
@@ -335,21 +471,35 @@ export default function CreatePage() {
 
           {/* ── Financials ── */}
           <section>
-            <h2 className="font-display text-xl font-bold mb-4 flex items-center gap-2">
-              <span className="text-accent">03</span> Pricing
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-xl font-bold flex items-center gap-2">
+                <span className="text-accent">03</span> Pricing
+              </h2>
+              <button
+                type="button"
+                disabled={isSuggestingPrice}
+                onClick={handleAISuggestPrice}
+                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider bg-accent2/10 hover:bg-accent2/20 text-accent2 px-3 py-1.5 rounded-full border border-accent2/20 transition-all"
+              >
+                {isSuggestingPrice ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Calculator size={12} />
+                )}
+                AI Suggest
+              </button>
+            </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="label" htmlFor="paymentToken">Payment Token *</label>
                 <select
                   id="paymentToken"
-                  className="input-field bg-surface appearance-none"
+                  className="input-field bg-surface appearance-none text-muted"
                   value={form.paymentToken}
+                  disabled
                   onChange={(e) => setForm({ ...form, paymentToken: e.target.value })}
                 >
-                  <option value="0x0000000000000000000000000000000000000000">ETH (Native)</option>
-                  <option value="0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238">USDC (Sepolia)</option>
-                  <option value="0xFF34B3d4Aee8ddCd6F9AFF36F22FF3e25b1F985F">DAI (Sepolia)</option>
+                  <option value="0x0000000000000000000000000000000000000000">Sepolia ETH</option>
                 </select>
               </div>
               <div>
@@ -366,7 +516,7 @@ export default function CreatePage() {
                     onChange={(e) => setForm({ ...form, rent: e.target.value })}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted font-mono font-bold">
-                    {form.paymentToken === "0x0000000000000000000000000000000000000000" ? "ETH" : form.paymentToken === "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" ? "USDC" : "DAI"}
+                    ETH
                   </span>
                 </div>
               </div>
@@ -384,13 +534,13 @@ export default function CreatePage() {
                     onChange={(e) => setForm({ ...form, deposit: e.target.value })}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted font-mono font-bold">
-                    {form.paymentToken === "0x0000000000000000000000000000000000000000" ? "ETH" : form.paymentToken === "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" ? "USDC" : "DAI"}
+                    ETH
                   </span>
                 </div>
               </div>
             </div>
             <div className="mt-3 p-3 bg-accent2/5 border border-accent2/20 rounded-lg text-xs text-muted">
-              💡 Tenant will pay <span className="font-mono text-accent2 font-bold">{(parseFloat(form.rent || "0") + parseFloat(form.deposit || "0")).toFixed(4)} {form.paymentToken === "0x0000000000000000000000000000000000000000" ? "ETH" : form.paymentToken === "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" ? "USDC" : "DAI"}</span> total (rent + deposit). Deposit is returned on completion.
+              💡 Tenant will pay <span className="font-mono text-accent2 font-bold">{(parseFloat(form.rent || "0") + parseFloat(form.deposit || "0")).toFixed(4)} ETH</span> total (rent + deposit). Deposit is returned on completion.
             </div>
           </section>
 
@@ -409,7 +559,7 @@ export default function CreatePage() {
                   required
                   type="date"
                   className="input-field"
-                  min={getTomorrow()}
+                  min={getToday()}
                   value={form.startDate}
                   onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                 />

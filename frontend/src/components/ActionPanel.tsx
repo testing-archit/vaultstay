@@ -222,18 +222,20 @@ export function ActionPanel({ rental, onTxSuccess }: ActionPanelProps) {
               </p>
               <button
                 onClick={() => handleTx(() => activate(rental.id))}
-                disabled={isActivating || isEarlyToActivate}
+                disabled={isActivating}
                 className="w-full py-3.5 bg-accent2 hover:bg-accent2/90 text-background font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(0,212,170,0.3)] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                🔑 {isEarlyToActivate ? "Too early to activate" : "Activate Rental"}
+                🔑 {isEarlyToActivate ? "Activate (Might be early)" : "Activate Rental"}
               </button>
+              <div className="text-[10px] text-muted font-mono mt-1 text-center">
+                Debug: now={now}, start={Number(rental.startTimestamp)}, diff={Number(rental.startTimestamp) - now}s
+              </div>
               <button
                 onClick={() => handleTx(() => cancel(rental.id))}
-                disabled={isCancelling || !isEarlyToActivate}
+                disabled={isCancelling}
                 className="btn-danger w-full py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                title={!isEarlyToActivate ? "Cannot cancel after the start date" : ""}
               >
-                {!isEarlyToActivate ? "Cannot cancel (Start date reached)" : "Cancel & Refund Tenant"}
+                Cancel & Refund Tenant
               </button>
             </div>
           )}

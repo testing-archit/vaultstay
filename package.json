@@ -11,7 +11,11 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/contracts": "^5.0.2",
-    "dotenv": "^16.4.5",
-    "hardhat": "^2.22.4"
+    "dotenv": "^16.6.1",
+    "hardhat": "^2.22.4",
+    "vercel": "^53.1.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.1"
   }
 }
