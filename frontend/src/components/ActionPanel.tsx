@@ -124,14 +124,14 @@ export function ActionPanel({ rental, onTxSuccess }: ActionPanelProps) {
   });
   const needsApproval = isERC20 && (allowance ?? 0n) < totalWei;
   
-  // Track time safely inside React lifecycle to satisfy purity rules
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
   useEffect(() => {
-    const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 10000);
+    const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(timer);
   }, []);
   
   const isEarlyToActivate = now < Number(rental.startTimestamp);
+  const secondsUntilStart = Math.max(0, Number(rental.startTimestamp) - now);
   const isPastAutoResolve = now > Number(rental.endTimestamp) + 7 * 86400;
 
   const isAnyPending =
@@ -220,16 +220,23 @@ export function ActionPanel({ rental, onTxSuccess }: ActionPanelProps) {
               <p className="text-sm text-accent2 font-medium">
                 ✅ Escrow Funded! Activate when tenant is ready to check in.
               </p>
-              <button
-                onClick={() => handleTx(() => activate(rental.id))}
-                disabled={isActivating}
-                className="w-full py-3.5 bg-accent2 hover:bg-accent2/90 text-background font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(0,212,170,0.3)] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                🔑 {isEarlyToActivate ? "Activate (Might be early)" : "Activate Rental"}
-              </button>
-              <div className="text-[10px] text-muted font-mono mt-1 text-center">
-                Debug: now={now}, start={Number(rental.startTimestamp)}, diff={Number(rental.startTimestamp) - now}s
-              </div>
+              {isEarlyToActivate ? (
+                <div className="w-full py-3.5 bg-surface border border-border rounded-xl flex flex-col items-center gap-1">
+                  <span className="text-xs text-muted font-medium">⏳ Activation unlocks in</span>
+                  <span className="font-mono text-lg font-bold text-accent tabular-nums">
+                    {String(Math.floor(secondsUntilStart / 60)).padStart(2, '0')}:{String(secondsUntilStart % 60).padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] text-muted">(start time has not been reached yet)</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleTx(() => activate(rental.id))}
+                  disabled={isActivating}
+                  className="w-full py-3.5 bg-accent2 hover:bg-accent2/90 text-background font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(0,212,170,0.3)] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  🔑 Activate Rental
+                </button>
+              )}
               <button
                 onClick={() => handleTx(() => cancel(rental.id))}
                 disabled={isCancelling}

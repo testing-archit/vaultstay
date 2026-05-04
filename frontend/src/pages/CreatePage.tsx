@@ -203,10 +203,12 @@ export default function CreatePage() {
       let startTs = Math.floor(new Date(form.startDate + "T12:00:00Z").getTime() / 1000);
       const nowTs = Math.floor(Date.now() / 1000);
 
-      // If the selected date resolves to the past (e.g., today but earlier in the day),
-      // bump it to 5 minutes in the future so the blockchain accepts it.
-      if (startTs <= nowTs) {
-        startTs = nowTs + 300; // 5 mins from now
+      // If today is selected, ALWAYS use nowTs + 90 regardless of where noon UTC falls.
+      // This avoids the case where noon UTC is still 90+ mins away, locking activation.
+      const selectedDateStr = form.startDate; // YYYY-MM-DD in local time
+      const isTodaySelected = selectedDateStr === getToday();
+      if (isTodaySelected || startTs <= nowTs + 60) {
+        startTs = nowTs + 90; // ~90s from now — enough for listing tx to confirm
       }
 
       const endTs = startTs + parseInt(form.duration) * 86400;
